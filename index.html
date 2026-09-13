@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garage Sale & Moving Out Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-indigo-700 text-white shadow-lg py-8 px-4 text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">House Items for Sale</h1>
+        <p class="text-indigo-200 mt-2 text-sm md:text-base">Browse available items, bundles, and pricing. Updated live!</p>
+    </header>
+
+    <!-- Controls & Search -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <div class="flex flex-col md:flex-row gap-4 mb-8 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <!-- Search Bar -->
+            <input type="text" id="searchInput" placeholder="Search items, brands, or details..." 
+                class="w-full md:w-1/2 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+
+            <!-- Sort Option -->
+            <select id="sortSelect" class="w-full md:w-1/4 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="default">Sort by: Default</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+            </select>
+        </div>
+
+        <!-- Items Grid -->
+        <div id="itemsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="col-span-full text-center py-12 text-gray-500">
+                <p class="animate-pulse text-lg font-medium">Loading inventory from Google Sheets...</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // REPLACE THIS URL with your published Google Sheet CSV link
+        const GOOGLE_SHEET_CSV_URL = 'YOUR_PUBLISHED_GOOGLE_SHEET_CSV_URL_HERE';
+
+        let itemsData = [];
+
+        function fetchInventory() {
+            if (GOOGLE_SHEET_CSV_URL.includes('YOUR_PUBLISHED_GOOGLE_SHEET_CSV_URL_HERE')) {
+                renderDemoNotice();
+                return;
+            }
+
+            Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    itemsData = results.data.filter(row => row.Item && row.Item.trim() !== '');
+                    renderItems(itemsData);
+                },
+                error: function(err) {
+                    console.error('Error fetching CSV:', err);
+                    document.getElementById('itemsGrid').innerHTML = `
+                        <div class="col-span-full text-center py-12 text-red-500">
+                            Failed to load inventory. Please verify your Google Sheet URL.
+                        </div>`;
+                }
+            });
+        }
+
+        function renderItems(data) {
+            const container = document.getElementById('itemsGrid');
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                container.innerHTML = `<p class="col-span-full text-center text-gray-500 py-8">No matching items found.</p>`;
+                return;
+            }
+
+            data.forEach(item => {
+                const name = item['Item'] || 'Unnamed Item';
+                const brand = item['Brand / Model or SKU'] || '';
+                const details = item['Details'] || 'No additional details provided.';
+                const price = item['Nov 2026 Fair Value'] ? `₱${Number(item['Nov 2026 Fair Value']).toLocaleString()}` : 'Contact for Price';
+                const origPrice = item['Original Purchased Price'] ? `₱${Number(item['Original Purchased Price']).toLocaleString()}` : null;
+                const bundle = item['Bundle'] || null;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow p-5 flex flex-col justify-between';
+
+                card.innerHTML = `
+                    <div>
+                        ${bundle ? `<span class="inline-block bg-indigo-100 text-indigo-800 text-xs px-2.5 py-0.5 rounded-full font-semibold mb-2">Bundle: ${bundle}</span>` : ''}
+                        <h3 class="text-xl font-bold text-gray-900">${name}</h3>
+                        ${brand ? `<p class="text-xs font-semibold text-gray-400 mb-2">${brand}</p>` : ''}
+                        <p class="text-sm text-gray-600 mb-4 line-clamp-3">${details}</p>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
+                        <div>
+                            <span class="text-2xl font-extrabold text-indigo-600">${price}</span>
+                            ${origPrice ? `<span class="block text-xs text-gray-400 line-through">Orig: ${origPrice}</span>` : ''}
+                        </div>
+                        <a href="https://wa.me/?text=${encodeURIComponent('Hi, I am interested in purchasing: ' + name)}" target="_blank" 
+                           class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+                            Inquire
+                        </a>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderDemoNotice() {
+            document.getElementById('itemsGrid').innerHTML = `
+                <div class="col-span-full bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-6 text-center">
+                    <h2 class="text-lg font-bold mb-2">Google Sheet URL Required</h2>
+                    <p class="text-sm">Please follow Step 2 below to publish your Google Sheet as a CSV and insert the link in the code.</p>
+                </div>`;
+        }
+
+        // Filtering & Sorting
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = itemsData.filter(item => 
+                (item['Item'] && item['Item'].toLowerCase().includes(query)) ||
+                (item['Brand / Model or SKU'] && item['Brand / Model or SKU'].toLowerCase().includes(query)) ||
+                (item['Details'] && item['Details'].toLowerCase().includes(query))
+            );
+            renderItems(filtered);
+        });
+
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            const val = e.target.value;
+            let sorted = [...itemsData];
+
+            if (val === 'price-low') {
+                sorted.sort((a, b) => (Number(a['Nov 2026 Fair Value']) || 0) - (Number(b['Nov 2026 Fair Value']) || 0));
+            } else if (val === 'price-high') {
+                sorted.sort((a, b) => (Number(b['Nov 2026 Fair Value']) || 0) - (Number(a['Nov 2026 Fair Value']) || 0));
+            }
+            renderItems(sorted);
+        });
+
+        fetchInventory();
+    </script>
+</body>
+</html>
